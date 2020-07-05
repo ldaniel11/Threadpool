@@ -7,6 +7,7 @@
  * Requires threadpool.c/threadpool.h
  *
  * Written by Godmar Back gback@cs.vt.edu for CS3214 Fall 2014.
+ * Updated Summer 2020
  */
 
 #include <stdlib.h>
@@ -166,7 +167,11 @@ qsort_parallel(int *array, int N)
     };
 
     struct thread_pool * threadpool = thread_pool_new(nthreads);
-    qsort_internal_parallel(threadpool, &root);
+    struct future * top = thread_pool_submit(threadpool,
+                                             (fork_join_task_t) qsort_internal_parallel,
+                                             &root);
+    future_get(top);
+    future_free(top);
     thread_pool_shutdown_and_destroy(threadpool);
 }
 

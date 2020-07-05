@@ -1,0 +1,8 @@
+{
+   ignore_sigaltstack_if_stack_overflow_handler_is_installed
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:install_stack_overflow_handler
+}
+

@@ -1,0 +1,3 @@
+*.o
+/fj_testdir_*
+/runresult.*.json

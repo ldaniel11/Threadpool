@@ -1,10 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 #
 # fjdriver.py for Fork/Join pool projects
 #
-# Written by Godmar Back and Scott Pruett
-# first version created Fall 2014, CS 3214
+# Written by Godmar Back and Scott Pruett for CS 3214
 #
 # https://git-scm.com/docs/pretty-formats
 version = "$Format:%H committed by %cn$"
@@ -35,20 +34,15 @@ poolfile = "./threadpool.c"
 verbose = False
 silent = False
 list_tests = False
-large_tests = False
 grade_mode = False
 benchmark_runs = 1
-large_node = False
-
-large_amd_nodes = ['fir.rlogin', 'sourwood.rlogin']
-if socket.gethostname() in large_amd_nodes:
-    large_node = True
 
 # Benchmark info
 
 # Times of serial runs for benchmarked tests
+# XXX these are out of date currently and ultimately not used.
 benchmark_times = {
-    'nqueens 13':      38.82948,
+    'nqueens 13':      17.158,
     'quicksort large': 19.81442,
     'mergesort large': 22.33417
 }
@@ -61,7 +55,7 @@ tests = load_test_module('standard')
 # look for threadpool.c in current dir, or point at with flag
 #
 def usage():
-    print """
+    print ("""
 Usage: %s [options]
     -v              Verbose
     -V              Print Version and exit
@@ -72,14 +66,12 @@ Usage: %s [options]
     -l              List available tests
     -t              Filter test by name, given as a comma separated list.
                     e.g.: -t basic1,psum
-    -L              Run large benchmarked tests, specific to which rlogin
-                    node you are on
-    """ % (sys.argv[0])
+    """ % (sys.argv[0]))
 
 try:
     opts, args = getopt.getopt(sys.argv[1:], "Varvhlp:t:o:B:gL", ["verbose", "help", "list-tests"])
-except getopt.GetoptError, err:
-    print str(err) # will print something like "option -a not recognized"
+except getopt.GetoptError as err:
+    print (str(err)) # will print something like "option -a not recognized"
     usage()
     sys.exit(2)
 
@@ -92,7 +84,7 @@ for opt, arg in opts:
         runfilter = lambda test: test.is_required and oldrunfilter(test)
 
     elif opt == "-V":
-        print "Version", version
+        print ("Version", version)
         sys.exit(0)
     elif opt == "-a":
         ignore_if_not_idle = True
@@ -111,9 +103,6 @@ for opt, arg in opts:
         benchmark_runs = int(arg)
     elif opt == '-g':
         grade_mode = True
-    elif opt == '-L':
-        large_tests = True
-        tests = load_test_module('large')
     elif opt == '-t':
         filtered = arg.split(',')
         for filter in filtered:
@@ -121,7 +110,7 @@ for opt, arg in opts:
                 if filter == test.name:
                     break
             else:
-                print 'Unknown test: %s. Use -l to list test names.' % filter
+                print ('Unknown test: %s. Use -l to list test names.' % filter)
                 usage()
                 sys.exit()
         oldrunfilter = runfilter
@@ -129,40 +118,34 @@ for opt, arg in opts:
     else:
         assert False, "unhandled option"
 
-if large_node and not large_tests:
-    print 'Please only use large rlogin nodes (fir, sourwood) for benchmarking.'
-    print 'Use the -L switch if you intend to benchmark on this node.'
-    sys.exit()
-
-
 if list_tests:
-    print 'Available tests (with applied filters):'
-    print 80 * '='
+    print ('Available tests (with applied filters):')
+    print (80 * '=')
     for test in tests:
         if runfilter(test):
-            print '%s: %s' % (test.name, test.description)
+            print ('%s: %s' % (test.name, test.description))
     sys.exit()
 
 def copyfile(src, dst):
     cmd = "cp %s %s" % (src, dst)
     if verbose:
-        print cmd
+        print (cmd)
     ex = os.system(cmd)
     if ex:
         sys.exit(ex)
 
 def setup_working_directory():
     if verbose:
-        print "Creating working directory",  workdir
+        print ("Creating working directory",  workdir)
 
     os.mkdir(workdir)
 
     if verbose:
-        print "Copying files"
+        print ("Copying files")
 
     if not os.access(poolfile, os.R_OK):
-        print
-        print "I cannot find %s" % poolfile
+        print ()
+        print ("I cannot find %s" % poolfile)
         usage()
         sys.exit(2)
 
@@ -177,7 +160,7 @@ def setup_working_directory():
 
     flist.close()
     if verbose:
-        print "Copying %s" % poolfile
+        print ("Copying %s" % poolfile)
 
     os.chdir(workdir)
 
@@ -191,10 +174,10 @@ def setup_working_directory():
 def check_software_engineering(objfile, allowedsymbols):
     hex = "[0-9A-Fa-f]{8,16}"
     if verbose:
-        print "Performing some checks that %s conforms to accepted software engineering practice..." % objfile
+        print ("Performing some checks that %s conforms to accepted software engineering practice..." % objfile)
 
     symbols = subprocess.Popen(["nm", objfile], stdout=subprocess.PIPE)\
-        .communicate()[0].split("\n")
+        .communicate()[0].decode().split("\n")
 
     for sym in symbols:
         if sym == "" or re.match("\s+U (\S+)", sym):
@@ -234,11 +217,11 @@ allowedsymbols = [ "future_free", "future_get",
 #
 
 def count_number_of_processes():
-    proc = subprocess.Popen(["ps", "ux"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(["ps", "ux", "-L"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     stdout, stderr = proc.communicate()
     # -2 for ps and header
-    return len(stdout.strip().split('\n')) - 2
+    return len(stdout.decode().strip().split('\n')) - 2
 
 def get_load_average():
     """
@@ -246,23 +229,24 @@ def get_load_average():
     running threads (minus 1) and loadavg is the load average
     """
     # 0.57 0.65 0.54 1/426 28121
-    f = open("/proc/loadavg")
-    c = f.read().strip()
-    m = re.match(r'(\S+) \S+ \S+ (\d+)/\d+ \d+', c)
-    load = float(m.groups()[0])
-    nprocs = int(m.groups()[1])
-    f.close()
+    with open("/proc/loadavg") as f:
+        c = f.read().strip()
+        m = re.match(r'(\S+) \S+ \S+ (\d+)/\d+ \d+', c)
+        load = float(m.groups()[0])
+        nprocs = int(m.groups()[1])
+
     return nprocs - 1, load
 
 def wait_for_load_to_go_down():
     while True:
+        time.sleep(0.2)
         nprocs, load = get_load_average()
         if nprocs == 0 and load < 1.0:
             break
 
-        print "Warning. There are other %d processes running on this machine, loadavg %f." % (nprocs, load)
-        print "Sleeping for 1 second.  Use the -a switch to run the benchmarks regardless."
-        time.sleep(1.0)
+        print ("Warning. There are other %d processes running on this machine, loadavg %f." % (nprocs, load))
+        print ("Sleeping for 1 second.  Use the -a switch to run the benchmarks regardless.")
+        time.sleep(0.8)
 
 # run tests
 #
@@ -277,9 +261,9 @@ def wait_for_load_to_go_down():
 #
 
 def set_threadlimit(nthreads):
-    def closure():
+    def limit_threads():
         resource.setrlimit(resource.RLIMIT_NPROC, (nthreads, nthreads))
-    return closure
+    return limit_threads
 
 def run_single_test(test, run, threads):
     cmdline = ['timeout', str(run.timeout), test.command, '-n', str(threads)] + run.args
@@ -292,7 +276,7 @@ def run_single_test(test, run, threads):
             rundata[k] = v
 
     if not silent:
-        print 'Running:', ' '.join(cmdline),
+        print ('Running:', ' '.join(cmdline), end=' ')
         sys.stdout.flush()
     infile = None
     if run.input_file:
@@ -301,9 +285,11 @@ def run_single_test(test, run, threads):
     # we set it to #threads + 1 (for the main thread)
     # plus existing procs
     starttime = time.time()
+    preexec_fn=set_threadlimit(threads + 2 + number_of_existing_processes) if test.limit_threads \
+                else (lambda : None)
     proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, stdin=infile,
-                            preexec_fn=set_threadlimit(threads + 2 + number_of_existing_processes))
+                            preexec_fn=preexec_fn)
 
     stdout, stderr = proc.communicate()
     if grade_mode:
@@ -314,7 +300,7 @@ def run_single_test(test, run, threads):
     if infile:
         infile.close()
 
-    signames = dict((k, v) for v, k in signal.__dict__.iteritems() if v.startswith('SIG'))
+    signames = dict((k, v) for v, k in signal.__dict__.items() if v.startswith('SIG'))
     signum = proc.returncode - 128
     if proc.returncode < 0:
         signum = -proc.returncode
@@ -329,14 +315,14 @@ def run_single_test(test, run, threads):
         %s
         StdErr output:
         %s
-        """ % (signum, signames[signum], timeoutmsg, stdout, stderr)
+        """ % (signum, signames[signum], timeoutmsg, stdout.decode(), stderr.decode())
         addrundata({
             'error': error
         })
         if not silent:
-            print '[ ]'
+            print ('[ ]')
             if verbose or grade_mode:
-                print error
+                print (error)
 
     elif proc.returncode > 0:
         # non-zero exit code
@@ -351,33 +337,34 @@ def run_single_test(test, run, threads):
         %s
         StdErr output:
         %s
-        """ % (proc.returncode, timeoutmsg, stdout, stderr)
+        """ % (proc.returncode, timeoutmsg, stdout.decode(), stderr.decode())
 
         addrundata({
             'error': error
         })
         if not silent:
-            print '[ ]'
+            print ('[ ]')
             if verbose or grade_mode:
-                print error
+                print (error)
 
     else:
         if not silent:
-            print '[+]'
+            print ('[+]')
 
         outfile = 'runresult.%d.json' % (proc.pid)
+        addrundata({'stdout': stdout.decode()})
+        if len(stderr) > 0: 
+            addrundata({'stderr': stderr.decode()})
+
         if not os.access(outfile, os.R_OK):
             addrundata({
                 'error': 'The benchmark did not create the expected result file %s' % outfile
             })
         else:
-            f = open(outfile, 'r')
-            data = f.read()
-            f.close()
+            with open(outfile, 'r') as f:
+                data = f.read()
+
             addrundata(json.loads(data))
-            rundata['stdout'] = stdout
-            if len(stderr) > 0: 
-                rundata['stderr'] = stderr
             os.unlink(outfile)
     return rundata
     
@@ -428,13 +415,13 @@ def run_tests(tests):
     for test in tests:
         if not runfilter(test):
             if verbose:
-                print 'Skipping test: ' + test.description
+                print ('Skipping test: ' + test.description)
             continue
 
         if not silent:
-            print ''
-            print 'Starting test: ' + test.description
-            print '=' * 80
+            print ('')
+            print ('Starting test: ' + test.description)
+            print ('=' * 80)
 
         results[test.name] = {}
         for run in test.runs:
@@ -460,55 +447,61 @@ def run_tests(tests):
     return results
 
 def print_results(results):
-    print json.dumps(results, indent = 4, sort_keys = True, separators = (',', ': '))
+    print (json.dumps(results, indent = 4, sort_keys = True, separators = (',', ': ')))
+    # try pretting printing errors for better readability
+    try:
+        def print_info(o):
+            for k in ['error', 'stderr', 'stdout']:
+                if k in o:
+                    print (o[k])
+
+        for test, r in results.items():
+            for rr in r.values():
+                for o in rr:
+                    print_info(o)
+                    if 'runs' in o:
+                        map(print_info, o['runs'])
+
+    except Exception as e:
+        print(e)
+        pass
+
 
 def write_results_to_json(filename):
     jfile = open(results_file, "w")
-    print >>jfile, json.dumps(results, indent = 4, sort_keys = True, separators = (',', ': '))
+    print (json.dumps(results, indent = 4, sort_keys = True, separators = (',', ': ')), file=jfile)
     jfile.close()
 
 def find_thread_run(perthreadresults, threadcount):
-    for result in perthreadresults:
-        if result['nthreads'] == threadcount:
-            return result
-    return None
+    return next(filter(lambda result: result['nthreads'] == threadcount, perthreadresults), None)
 
 def print_grade_table(results, tests):
-    thread_headers = [1, 2, (4, 5), (8, 10), (16, 20)]
-    if large_tests and large_node:
-        thread_headers = [8, 16, 32, 64]
-    elif large_tests:
-        thread_headers = [5, 10, 20]
-    print ''
-    print 'Test name:' + (16 * ' ') + ''.join(map(lambda x: '%-10s' % str(x), thread_headers))
-    print '='*80
+    # report the results of running each tests with 
+    thread_headers = [1, 2, 4, 8, 16, 32]
+    print ('')
+    print ('Test name:' + (16 * ' ') + ''.join(map(lambda x: '%-10s' % str(x), thread_headers)))
+    print ('='*80)
     minimum_requirements = True
     for test in tests:
         if not runfilter(test) and test.is_required:
             if not silent:
-                print 'WARNING: Skipping minimum requirement test (%s), will not say you passed!' % test.name
+                print ('WARNING: Skipping minimum requirement test (%s), will not say you passed!' % test.name)
             minimum_requirements = False
 
         if not runfilter(test):
             continue
         if not test.name in results:
-            print '%s: could not find test data!' % test.name
+            print ('%s: could not find test data!' % test.name)
         res = results[test.name]
-        print '%s:' % test.name.upper() + '  ' + test.description
+        print ('%s:' % test.name.upper() + '  ' + test.description)
     
         passed = True
         for run in test.runs:
             statuses = []
             for threads in thread_headers:
-                if isinstance(threads, int):
-                    thread_run = find_thread_run(res[run.name], threads)
-                else:
-                    for t in threads:
-                        thread_run = find_thread_run(res[run.name], t)
-                        if thread_run:
-                            break
+                thread_run = find_thread_run(res[run.name], threads)
                 if not thread_run:
-                    statuses.append('')
+                    statuses.append('')  # MISSING
                 elif 'error' in thread_run:
                     passed = False
                     statuses.append('[ ]')
@@ -517,23 +510,23 @@ def print_grade_table(results, tests):
                 else:
                     statuses.append('[X]')
 
-            print '  %-23s' % (run.name) + ''.join(map(lambda x: '%-10s' % x, statuses))
+            print ('  %-23s' % (run.name) + ''.join(map(lambda x: '%-10s' % x, statuses)))
         
         if not passed and test.is_required:
             minimum_requirements = False
 
-    print '='*80
-    if minimum_requirements and not large_tests:
-        print 'You have met minimum requirements.'
-    elif not large_tests:
-        print 'You did not meet minimum requirements.'
+    print ('='*80)
+    if minimum_requirements:
+        print ('You have met minimum requirements, your performance score will count.')
+    else:
+        print ('You did not meet minimum requirements; your performance score will be zero.')
 
 
 setup_working_directory()
 check_software_engineering("threadpool.o", allowedsymbols)
 number_of_existing_processes = count_number_of_processes()
 if verbose:
-    print "There are %d process currently running for user %s" % (number_of_existing_processes, os.getlogin())
+    print ("There are %d process currently running for user %s" % (number_of_existing_processes, os.getlogin()))
 
 if not ignore_if_not_idle:
     wait_for_load_to_go_down()
@@ -544,7 +537,6 @@ if verbose:
 if not silent:
     print_grade_table(results, tests)
 
-if not large_node:
-    write_results_to_json(results_file)
-    print "Wrote full results to %s/%s" % (workdir, results_file)
+write_results_to_json(results_file)
+print ("Wrote full results to %s/%s" % (workdir, results_file))
 

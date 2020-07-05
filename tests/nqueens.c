@@ -1,3 +1,6 @@
+/* NQueens solver.
+ * Written by gback for CS 3214
+ */
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -8,7 +11,7 @@
 
 #define MAX_N (18)
 #define WORD_BITS (sizeof(long) * 8)
-#define MAX_LONGS (MAX_N * MAX_N / WORD_BITS)
+#define MAX_LONGS ((MAX_N + WORD_BITS - 1) / WORD_BITS * MAX_N)
 
 static int max_parallel_depth = 6;
 static int valid_solutions[] = {0, 1, 0, 0, 2, 10, 4, 40, 92, 352, 724, 2680, 14200,
@@ -143,16 +146,17 @@ static void benchmark(int N, int threads) {
 }
 
 static void usage(char *av0, int depth, int nthreads) {
-    fprintf(stderr, "Usage: %s [-d <n>] [-n <n>] [-b] [-q] [-s <n>] <N>\n"
+    fprintf(stderr, "Usage: %s [-d <n>] [-n <n>] <N>\n"
                     " -d        parallel recursion depth, default %d\n"
                     " -n        number of threads in pool, default %d\n"
                     , av0, depth, nthreads);
     abort();
 }
+
 int main(int ac, char** av) {
     int threads = 4;
     int c;
-    while ((c = getopt(ac, av, "d:n:bhs:q")) != EOF) {
+    while ((c = getopt(ac, av, "d:n:h")) != EOF) {
         switch (c) {
         case 'd':
             max_parallel_depth = atoi(optarg);

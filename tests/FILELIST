@@ -16,3 +16,6 @@ threadpool_test2.c
 threadpool_test3.c
 threadpool_test4.c
 threadpool_test5.c
+threadpool_test6.c
+threadpool_test6.py
+sigaltstack.suppression
