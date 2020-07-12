@@ -1,4 +1,5 @@
 #include <time.h>
+#include <stdio.h>
 
 /**
  * These functions are mostly used by the tests and test driver.
