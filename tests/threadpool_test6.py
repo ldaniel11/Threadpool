@@ -19,6 +19,10 @@ if proc.returncode != 0:
 # ==2343328==    indirectly lost: 0 bytes in 0 blocks
 # ==2343328==      possibly lost: 0 bytes in 0 blocks
 # ==2343328==    still reachable: 0 bytes in 0 blocks
+#
+# or:
+# ==1321353==     in use at exit: 0 bytes in 0 blocks
+# All heap blocks were freed -- no leaks are possible
 
 reports = set()
 for line in stderr.decode().split('\n'):
@@ -40,7 +44,7 @@ try:
 except FileNotFoundError as fne:
     print (fne, file=sys.stderr)
 
-if reports == {'possibly lost', 'indirectly lost', 'definitely lost', 'still reachable'}:
+if reports == {'possibly lost', 'indirectly lost', 'definitely lost', 'still reachable'} or reports == {'in use at exit'}:
     print ("Leak check successful.")
     sys.exit(0)
 else:
