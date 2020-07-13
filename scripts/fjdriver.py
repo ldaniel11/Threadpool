@@ -42,7 +42,7 @@ benchmark_runs = 1
 # Times of serial runs for benchmarked tests
 # XXX these are out of date currently and ultimately not used.
 benchmark_times = {
-    'nqueens 13':      17.158,
+    'nqueens 14':      17.158,
     'quicksort large': 19.81442,
     'mergesort large': 22.33417
 }
