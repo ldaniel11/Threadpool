@@ -105,12 +105,12 @@ for opt, arg in opts:
         grade_mode = True
     elif opt == '-t':
         filtered = arg.split(',')
-        for filter in filtered:
+        for _filter in filtered:
             for test in tests:
-                if filter == test.name:
+                if _filter == test.name:
                     break
             else:
-                print ('Unknown test: %s. Use -l to list test names.' % filter)
+                print ('Unknown test: %s. Use -l to list test names.' % _filter)
                 usage()
                 sys.exit()
         oldrunfilter = runfilter
