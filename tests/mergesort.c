@@ -19,7 +19,6 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <pthread.h>
-#include <assert.h>
 #include <getopt.h>
 
 /* When to switch from parallel to serial */

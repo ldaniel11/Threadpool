@@ -19,8 +19,8 @@
  * ==2336955==    still reachable: 0 bytes in 0 blocks
  *
  * Written by G. Back for CS3214 Summer 2020.
+ * Updated Fall 2020.
  */
-#include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -42,8 +42,20 @@ struct taskno_wrapper {
 };
 
 static void *
+inner_task(struct thread_pool *pool, struct taskno_wrapper * data)
+{
+    return (void *)data->taskno;
+}
+
+static void *
 test_task(struct thread_pool *pool, struct taskno_wrapper * data)
 {
+    struct taskno_wrapper childdata = { .taskno = 2 * data->taskno };
+    struct future * child = thread_pool_submit(pool, (fork_join_task_t) inner_task, &childdata);
+    void * result = future_get(child);
+    if ((uintptr_t) result != 2 * data->taskno)
+        abort();
+    future_free(child);
     return (void *)data->taskno;
 }
 

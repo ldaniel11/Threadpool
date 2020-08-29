@@ -7,7 +7,6 @@
  *
  * Written by G. Back for CS3214 Fall 2014.
  */
-#include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>

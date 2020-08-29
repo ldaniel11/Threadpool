@@ -18,7 +18,6 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <pthread.h>
-#include <assert.h>
 #include <getopt.h>
 
 #include "threadpool_lib.h"

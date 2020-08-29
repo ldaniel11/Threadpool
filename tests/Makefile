@@ -8,8 +8,9 @@
 # Do not change this line.  We will not use your copy of the Makefile
 # we will use *this* Makefile when grading.
 #
-# for benchmarking
-CFLAGS=-pthread -Wall -O3 -Werror -Wmissing-prototypes -fopenmp
+# for benchmarking we'll use this.
+# Note that this defines NDEBUG, which removes all assert()s from your code
+CFLAGS=-pthread -Wall -O3 -Werror -Wmissing-prototypes -fopenmp -DNDEBUG
 LDFLAGS=-pthread
 # for debugging, you may use these
 #CFLAGS=-Wall -O0 -g -Werror -Wmissing-prototypes -fopenmp

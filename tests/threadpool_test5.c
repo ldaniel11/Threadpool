@@ -7,7 +7,6 @@
  *
  * Written by G. Back for CS3214 Spring 2016.
  */
-#include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -105,7 +104,10 @@ main(int ac, char *av[])
         switch (c) {
         case 'n':
             nthreads = atoi(optarg);
-            assert (nthreads > 1 || !!!"Cannot test for concurrency with only 1 thread");
+            if (nthreads == 1) {
+                fprintf(stderr, "Cannot test for concurrency with only 1 thread\n");
+                abort();
+            }
             break;
         case 't':
             ntasks = atoi(optarg);
