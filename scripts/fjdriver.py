@@ -164,7 +164,7 @@ def setup_working_directory():
 
     os.chdir(workdir)
 
-    if os.system("make"):
+    if os.system("make -j 20"):
         if grade_mode:
             op = open(results_file, 'w')
             op.write(json.dumps({'error': 'did not compile'}))
