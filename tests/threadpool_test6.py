@@ -5,7 +5,7 @@
 
 import sys, subprocess, re, os
 
-valgrind_cmd = ["valgrind", "--leak-check=full", "--suppressions=sigaltstack.suppression", "./threadpool_test6"]
+valgrind_cmd = ["valgrind", "--fair-sched=yes", "--leak-check=full", "--suppressions=sigaltstack.suppression", "./threadpool_test6"]
 
 proc = subprocess.Popen(valgrind_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 stdout, stderr = proc.communicate()
