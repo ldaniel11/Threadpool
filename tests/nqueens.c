@@ -32,13 +32,13 @@ static bool is_queen(struct board* board, int x, int y, int N) {
         return false;
     }
     long long idx = x * N + y;
-    return (board->bits[idx / WORD_BITS] & (1L << (idx % WORD_BITS))) ==
-        (1L << (idx % WORD_BITS));
+    return (board->bits[idx / WORD_BITS] & (1UL << (idx % WORD_BITS))) ==
+        (1UL << (idx % WORD_BITS));
 }
 
 static void set_queen(struct board* board, int x, int y, int N) {
     int idx = x * N + y;
-    board->bits[idx / WORD_BITS] |= (1L << (idx % WORD_BITS));
+    board->bits[idx / WORD_BITS] |= (1UL << (idx % WORD_BITS));
 }
 static void unset_queen(struct board* board, int x, int y, int N) {
     int idx = x * N + y;
