@@ -42,7 +42,7 @@ static void set_queen(struct board* board, int x, int y, int N) {
 }
 static void unset_queen(struct board* board, int x, int y, int N) {
     int idx = x * N + y;
-    board->bits[idx / WORD_BITS] &= ~(1L << (idx % WORD_BITS));
+    board->bits[idx / WORD_BITS] &= ~(1UL << (idx % WORD_BITS));
 }
 
 static int solved(struct board* board, int N) {
