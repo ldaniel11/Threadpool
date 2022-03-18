@@ -32,7 +32,7 @@ typedef struct thread_pool {
     pthread_t *thread_arr; // the thread array in the thread pool
 }thread_pool;
 
-// static void * worker_thread(void *p) {
+static void * worker_thread(void *p) {
      
 //      thread_pool* swimming_pool = (thread_pool*) p;
 
@@ -60,19 +60,43 @@ typedef struct thread_pool {
 
 
 
-// }
+}
 
 // create a thread pool
 struct thread_pool *thread_pool_new(int nthreads) {
    // create a thread pool
-   thread_pool *swimming_pool = (thread_pool*)calloc(1, sizeof(thread_pool));
+   thread_pool* swimming_pool = (thread_pool*)calloc(1, sizeof(thread_pool));
 
    swimming_pool->threads = nthreads;
+   list_init(&swimming_pool->global);
+   list_init(&swimming_pool->worker);
+
+   swimming_pool->thread_arr = (pthread_t*)calloc(nthreads, sizeof(pthread_t));
+
+   pthread_mutex_init(&swimming_pool->p_lock, NULL);
+   pthread_mutex_init(&swimming_pool->cond, NULL);
 
 
    // initialize worker threads
+   pthread_mutex_lock(&swimming_pool->p_lock);
+   int a = 0; // a local variable used to represent the number of threads temporarily
 
-   // call pthread_create
+   while (a < swimming_pool->threads) {
+       struct worker* mcquain = (worker*)calloc(1, sizeof(worker));
+
+       list_init(&mcquain->local);
+       pthread_mutex_init(&mcquain->local_lock, NULL);
+
+       list_push_back(&swimming_pool->worker, &mcquain->obj);
+
+       // I need to create a thread  
+       pthread_create(&swimming_pool->thread_arr[a], NULL, worker_thread,swimming_pool);
+
+       a++;
+    }
+    pthread_mutex_unlock(&swimming_pool->p_lock);
+
+    return swimming_pool;
 
 }
 
