@@ -38,75 +38,6 @@ typedef struct thread_pool
     struct list workers;    // the workers list we should concentrate on
     int threads;            // the total number of threads in the thread pool
     pthread_mutex_t p_lock; // the mutexes lock for the pool list
-<<<<<<< HEAD
-    pthread_cond_t cond; // the condition variable to be utilized 
-    int exit_flag; // a flag used to indicate when the pool is shutting down
-    pthread_t *thread_arr; // the thread array in the thread pool
-}thread_pool;
-
-static void *worker_thread(void *p)
-{
-
-    thread_pool *swimming_pool = (thread_pool *)p;
-
-    pthread_mutex_lock(&swimming_pool->p_lock);
-
-    struct worker *w = NULL;
-
-    struct list_elem *elem;
-
-    for (elem = list_begin(&swimming_pool->workers); elem != list_end(&swimming_pool->workers);
-         elem = list_next(elem))
-    {
-        struct worker *t = list_entry(elem, struct worker, obj);
-        if (t->thread == pthread_self())
-        {
-            w = t;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&swimming_pool->p_lock);
-
-    struct list_elem *e;
-
-    for (e = list_begin(&w->local); e != list_end(&w->local);
-         e = list_next(e))
-    {
-        struct future *f = list_entry(e, struct future, elem);
-        f->task_status = STARTED;
-        f->task(swimming_pool, f->data);
-    }
-}
-
-
-
-static bool worker_empty(thread_pool* swimming_pool) {
-    pthread_mutex_lock(&swimming_pool->p_lock);
-
-    struct list_elem* temp = list_begin(&swimming_pool->worker);
-
-    while(temp != list_end(&swimming_pool->worker)) {
-        worker * curr_worker = list_entry(temp, struct worker, obj);
-        if (!list_empty(&curr_worker->local)) {
-               pthread_mutex_unlock(&swimming_pool->worker);
-               return false; 
-        }
-        temp = list_next(&temp);
-    }
-    pthread_mutex_unlock(&swimming_pool->p_lock);
-    return true;
-}
-
-struct thread_pool *thread_pool_new(int nthreads) {
-   // create a thread pool
-   thread_pool* swimming_pool = (thread_pool*)calloc(1, sizeof(thread_pool));
-
-   swimming_pool->threads = nthreads;
-   list_init(&swimming_pool->global);
-   list_init(&swimming_pool->worker);
-
-   swimming_pool->thread_arr = (pthread_t*)calloc(nthreads, sizeof(pthread_t));
-=======
     pthread_cond_t cond;    // the condition variable to be utilized
     int exit_flag;          // a flag used to indicate when the pool is shutting down
     pthread_t *thread_arr;  // the thread array in the thread pool
@@ -153,7 +84,6 @@ struct thread_pool *thread_pool_new(int nthreads)
 {
     // create a thread pool
     thread_pool *swimming_pool = (thread_pool *)calloc(1, sizeof(thread_pool));
->>>>>>> bf1201ee6788bc8c943e83bde5d456f4a2f852c4
 
     swimming_pool->threads = nthreads;
     list_init(&swimming_pool->global);
@@ -187,7 +117,6 @@ struct thread_pool *thread_pool_new(int nthreads)
     return swimming_pool;
 }
 
-<<<<<<< HEAD
 void thread_pool_shutdown_and_destroy(struct thread_pool* pool) {
     pthread_mutex_lock(&pool->p_lock);
     
@@ -219,7 +148,7 @@ struct future * thread_pool_submit(struct thread_pool *pool, fork_join_task_t ta
     future* future_target = (future*) calloc(1, sizeof(future));
     future_target->pool = pool;
     future_target->task = task;
-    future_target->args = data;
+    future_target->data = data;
     future_target->task_status = 0; // The status of the task is about to get started.
 
     sem_init(&future_target->task_done, 0, 0); // initialize the smarphone is required to do so.
@@ -233,28 +162,15 @@ struct future * thread_pool_submit(struct thread_pool *pool, fork_join_task_t ta
     // and unlock the threadpool.
     pthread_cond_broadcast(&pool->cond); // We need to be default to braodcast and wait for staff.
     pthread_mutex_unlock(&pool->p_lock);
-=======
-void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
-{
-}
-
-struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void *data)
-{
->>>>>>> bf1201ee6788bc8c943e83bde5d456f4a2f852c4
 
     return future_target; 
 }
 
-<<<<<<< HEAD
 void *future_get(struct future * future) {
     
 
-=======
-void *future_get(struct future *future)
-{
->>>>>>> bf1201ee6788bc8c943e83bde5d456f4a2f852c4
 }
 
-void future_free(struct future *future)
-{
+void future_free(struct future *future){
+
 }
