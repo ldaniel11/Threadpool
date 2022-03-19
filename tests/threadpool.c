@@ -28,41 +28,63 @@ typedef struct thread_pool {
     int threads; // the total number of threads in the thread pool
     pthread_mutex_t p_lock; // the mutexes lock for the pool list
     pthread_cond_t cond; // the condition variable to be utilized 
-    int exit_flag; // a flag used to indicate when the pull is shutting down
+    int exit_flag; // a flag used to indicate when the pool is shutting down
     pthread_t *thread_arr; // the thread array in the thread pool
 }thread_pool;
 
-static void * worker_thread(void *p) {
-     
-//      thread_pool* swimming_pool = (thread_pool*) p;
+static void *worker_thread(void *p)
+{
 
-//      pthread_mutex_lock(&swimming_pool->p_lock);
+    thread_pool *swimming_pool = (thread_pool *)p;
 
-     
-//      int a = 0; // How many times you have already encountered
-//      bool found = false; // a boolean value indicating whether or not you find the thread
+    pthread_mutex_lock(&swimming_pool->p_lock);
 
-//      worker* candidate = NULL;
+    struct worker *w = NULL;
 
-//      struct list_elem* iteration = list_begin(&swimming_pool->worker);
+    struct list_elem *elem;
 
-//      while(iteration != list_end(&swimming_pool->worker) && !found) {
+    for (elem = list_begin(&swimming_pool->workers); elem != list_end(&swimming_pool->workers);
+         elem = list_next(elem))
+    {
+        struct worker *t = list_entry(elem, struct worker, obj);
+        if (t->thread == pthread_self())
+        {
+            w = t;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&swimming_pool->p_lock);
 
-//          if (pthread_self() == swimming_pool->thread_arr[a]) {
-//               candidate = list_entry(iteration, struct worker, elem);
-//               found = true;
-//          }
-//          a++;
-//          iteration = list_next(iteration);
-//     }
+    struct list_elem *e;
 
-//     pthread_mutex_unlock(&swimming_pool->p_lock);
-
-
-
+    for (e = list_begin(&w->local); e != list_end(&w->local);
+         e = list_next(e))
+    {
+        struct future *f = list_entry(e, struct future, elem);
+        f->task_status = STARTED;
+        f->task(swimming_pool, f->data);
+    }
 }
 
-// create a thread pool
+
+
+static bool worker_empty(thread_pool* swimming_pool) {
+    pthread_mutex_lock(&swimming_pool->p_lock);
+
+    struct list_elem* temp = list_begin(&swimming_pool->worker);
+
+    while(temp != list_end(&swimming_pool->worker)) {
+        worker * curr_worker = list_entry(temp, struct worker, obj);
+        if (!list_empty(&curr_worker->local)) {
+               pthread_mutex_unlock(&swimming_pool->worker);
+               return false; 
+        }
+        temp = list_next(&temp);
+    }
+    pthread_mutex_unlock(&swimming_pool->p_lock);
+    return true;
+}
+
 struct thread_pool *thread_pool_new(int nthreads) {
    // create a thread pool
    thread_pool* swimming_pool = (thread_pool*)calloc(1, sizeof(thread_pool));
@@ -101,14 +123,56 @@ struct thread_pool *thread_pool_new(int nthreads) {
 }
 
 void thread_pool_shutdown_and_destroy(struct thread_pool* pool) {
+    pthread_mutex_lock(&pool->p_lock);
+    
+    pool-> exit_flag = 1; // Right now, 1 is the number shutting down the pool.
 
+    pthread_cond_broadcast(&pool->cond); // Other threads must be waited so that all threads
+                                         // can destory altogether
+    
+    pthread_mutex_unlock(&pool->p_lock);
+
+    int a = 0;
+    while(a < pool->threads) {
+         pthread_join(pool->thread_arr[a], NULL);
+         a++;
+    }
+
+    free(pool->thread_arr);
+    free(pool);
 }
 
-struct future * thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void * data) {
+struct future * thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void * data) { 
+    // The main purpose of this task is to submit a fork_join_task 
+    // to the threadpool and return its future.
 
+    //(1) insert a mutex lock to achieve its desired implementation
+    pthread_mutex_lock(&pool->p_lock);
+
+    //(2) instantiate a target of future* and access its corresponding attributes
+    future* future_target = (future*) calloc(1, sizeof(future));
+    future_target->pool = pool;
+    future_target->task = task;
+    future_target->args = data;
+    future_target->task_status = 0; // The status of the task is about to get started.
+
+    sem_init(&future_target->task_done, 0, 0); // initialize the smarphone is required to do so.
+    // similar to a boss that you finish your task and place it at the laptop
+
+    // (3) Later, we decide to add an element to the global queue.
+    list_push_front(&pool->global, &future_target->elem);
+
+
+    // (4) The final step we are available to do is to wake up the threads in the thread pool 
+    // and unlock the threadpool.
+    pthread_cond_broadcast(&pool->cond); // We need to be default to braodcast and wait for staff.
+    pthread_mutex_unlock(&pool->p_lock);
+
+    return future_target; 
 }
 
 void *future_get(struct future * future) {
+    
 
 }
 
