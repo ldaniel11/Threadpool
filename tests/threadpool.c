@@ -44,14 +44,13 @@ typedef struct thread_pool
     pthread_t *thread_arr;  // the thread array in the thread pool
 } thread_pool;
 
-static _Thread_local struct worker *internal = NULL;
+//static _Thread_local struct worker *internal = NULL;
 
 static void *worker_thread(void *p)
 {
-    internal = (struct worker *)p;
+    struct worker *internal = (struct worker *)p;
     thread_pool *swimming_pool = internal->pool;
 
-    struct list_elem *e;
     // lock pool
     pthread_mutex_lock(&swimming_pool->p_lock);
     for (;;)
@@ -68,7 +67,7 @@ static void *worker_thread(void *p)
             pthread_mutex_unlock(&swimming_pool->p_lock);
             continue;
         }
-        
+        pthread_mutex_unlock(&swimming_pool->p_lock);
 
         struct list_elem *e;
 
@@ -76,11 +75,12 @@ static void *worker_thread(void *p)
              e = list_next(e))
         {
             struct worker *w = list_entry(e, struct worker, obj);
+            pthread_mutex_lock(&w->local_lock);
             if (!list_empty(&w->local))
             {
-                struct future *f = list_entry(list_pop_front(&w->local), struct future, elem);
+                struct future *f = list_entry(list_pop_back(&w->local), struct future, elem);
                 f->task_status = IN_PROGRESS;
-                pthread_mutex_unlock(&swimming_pool->p_lock);
+                pthread_mutex_unlock(&w->local_lock);
                 f->task(&swimming_pool, f->data);
                 pthread_mutex_lock(&w->local_lock);
                 f->task_status = COMPLETED;
@@ -88,7 +88,17 @@ static void *worker_thread(void *p)
                 pthread_mutex_unlock(&w->local_lock);
                 continue;
             }
+            pthread_mutex_unlock(&w->local_lock);
         }
+        pthread_mutex_lock(&swimming_pool->p_lock);
+        if (swimming_pool->exit)
+        {
+            pthread_mutex_unlock(&swimming_pool->p_lock);
+            break;
+        }
+        pthread_mutex_unlock(&swimming_pool->p_lock);
+        pthread_mutex_lock(&internal->local_lock);
+        pthread_cond_wait(&swimming_pool->cond, &internal->local_lock);
     // check if global pool is not empty
         // set future status
         // remove future from list
@@ -167,10 +177,10 @@ void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
 {
     pthread_mutex_lock(&pool->p_lock);
 
-    pool->exit = true; // Right now, 1 is the number shutting down the pool.
+    pool->exit = true; // Set the flag to shut down the pool
 
-    pthread_cond_broadcast(&pool->cond); // Other threads must be waited so that all threads
-                                         // can destory altogether
+    pthread_cond_broadcast(&pool->cond); // Other threads might be waiting so that all threads
+                                         // can destroy altogether
 
     pthread_mutex_unlock(&pool->p_lock);
 
