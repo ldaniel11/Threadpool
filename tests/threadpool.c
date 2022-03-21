@@ -30,7 +30,7 @@ typedef struct worker
     struct list_elem obj; // The element in the queue
     pthread_t thread;
     pthread_mutex_t local_lock; // We would like to access the lock
-    struct thread_pool *pool; 
+    struct thread_pool *pool;
 } worker;
 
 typedef struct thread_pool
@@ -40,7 +40,7 @@ typedef struct thread_pool
     int threads;            // the total number of threads in the thread pool
     pthread_mutex_t p_lock; // the mutexes lock for the pool list
     pthread_cond_t cond;    // the condition variable to be utilized
-    bool exit;          // a flag used to indicate when the pool is shutting down
+    bool exit;              // a flag used to indicate when the pool is shutting down
     pthread_t *thread_arr;  // the thread array in the thread pool
 } thread_pool;
 
@@ -134,8 +134,6 @@ static void *worker_thread(void *p)
     // unlock pool
 }
 
-
-
 // create a thread pool
 struct thread_pool *thread_pool_new(int nthreads)
 {
@@ -159,13 +157,14 @@ struct thread_pool *thread_pool_new(int nthreads)
     {
         struct worker *mcquain = (worker *)calloc(1, sizeof(worker));
         mcquain->thread = swimming_pool->thread_arr[a];
+        mcquain->pool = swimming_pool;
         list_init(&mcquain->local);
         pthread_mutex_init(&mcquain->local_lock, NULL);
 
         list_push_back(&swimming_pool->workers, &mcquain->obj);
 
         // I need to create a thread
-        pthread_create(&swimming_pool->thread_arr[a], NULL, worker_thread, swimming_pool);
+        pthread_create(&swimming_pool->thread_arr[a], NULL, worker_thread, mcquain);
 
         a++;
     }
@@ -174,35 +173,38 @@ struct thread_pool *thread_pool_new(int nthreads)
     return swimming_pool;
 }
 
-void thread_pool_shutdown_and_destroy(struct thread_pool* pool) {
+void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
+{
     pthread_mutex_lock(&pool->p_lock);
-    
-    pool-> exit = true; // Right now, 1 is the number shutting down the pool.
 
-    pthread_cond_broadcast(&pool->cond); // Other threads must be waited so that all threads
-                                         // can destory altogether
-    
+    pool->exit = true; // Set the flag to shut down the pool
+
+    pthread_cond_broadcast(&pool->cond); // Other threads might be waiting so that all threads
+                                         // can destroy altogether
+
     pthread_mutex_unlock(&pool->p_lock);
 
     int a = 0;
-    while(a < pool->threads) {
-         pthread_join(pool->thread_arr[a], NULL);
-         a++;
+    while (a < pool->threads)
+    {
+        pthread_join(pool->thread_arr[a], NULL);
+        a++;
     }
 
     free(pool->thread_arr);
     free(pool);
 }
 
-struct future * thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void * data) { 
-    // The main purpose of this task is to submit a fork_join_task 
+struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void *data)
+{
+    // The main purpose of this task is to submit a fork_join_task
     // to the threadpool and return its future.
 
     //(1) insert a mutex lock to achieve its desired implementation
     pthread_mutex_lock(&pool->p_lock);
 
     //(2) instantiate a target of future* and access its corresponding attributes
-    future* future_target = (future*) calloc(1, sizeof(future));
+    future *future_target = (future *)calloc(1, sizeof(future));
     future_target->pool = pool;
     future_target->task = task;
     future_target->data = data;
@@ -214,13 +216,12 @@ struct future * thread_pool_submit(struct thread_pool *pool, fork_join_task_t ta
     // (3) Later, we decide to add an element to the global queue.
     list_push_front(&pool->global, &future_target->elem);
 
-
-    // (4) The final step we are available to do is to wake up the threads in the thread pool 
+    // (4) The final step we are available to do is to wake up the threads in the thread pool
     // and unlock the threadpool.
     pthread_cond_broadcast(&pool->cond); // We need to be default to braodcast and wait for staff.
     pthread_mutex_unlock(&pool->p_lock);
 
-    return future_target; 
+    return future_target;
 }
 
 
