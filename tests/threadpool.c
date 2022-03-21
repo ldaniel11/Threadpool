@@ -60,7 +60,7 @@ static void *worker_thread(void *p)
             struct future *f = list_entry(list_pop_front(&swimming_pool->global), struct future, elem);
             f->task_status = IN_PROGRESS;
             pthread_mutex_unlock(&swimming_pool->p_lock);
-            f->task(&swimming_pool, f->data);
+            f->task(swimming_pool, f->data);
             pthread_mutex_lock(&swimming_pool->p_lock);
             f->task_status = COMPLETED;
             sem_post(&f->task_done);
@@ -81,7 +81,7 @@ static void *worker_thread(void *p)
                 struct future *f = list_entry(list_pop_back(&w->local), struct future, elem);
                 f->task_status = IN_PROGRESS;
                 pthread_mutex_unlock(&w->local_lock);
-                f->task(&swimming_pool, f->data);
+                f->task(swimming_pool, f->data);
                 pthread_mutex_lock(&w->local_lock);
                 f->task_status = COMPLETED;
                 sem_post(&f->task_done);
@@ -99,6 +99,7 @@ static void *worker_thread(void *p)
         pthread_mutex_unlock(&swimming_pool->p_lock);
         pthread_mutex_lock(&internal->local_lock);
         pthread_cond_wait(&swimming_pool->cond, &internal->local_lock);
+        pthread_mutex_unlock(&internal->local_lock);
     // check if global pool is not empty
         // set future status
         // remove future from list
@@ -131,6 +132,7 @@ static void *worker_thread(void *p)
 
         // pthread_mutex_unlock(&w->local_lock);
     }
+    return NULL;
     // unlock pool
 }
 
