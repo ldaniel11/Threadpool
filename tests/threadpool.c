@@ -31,6 +31,7 @@ typedef struct worker
     pthread_t thread;
     pthread_mutex_t local_lock; // We would like to access the lock
     struct thread_pool *pool;
+    pthread_cond_t cond;
 } worker;
 
 typedef struct thread_pool
@@ -44,22 +45,40 @@ typedef struct thread_pool
     pthread_t *thread_arr;  // the thread array in the thread pool
 } thread_pool;
 
-//static _Thread_local struct worker *internal = NULL;
+static _Thread_local struct worker *internal = NULL;
 
 static void *worker_thread(void *p)
 {
-    struct worker *internal = (struct worker *)p;
+    internal = (struct worker *)p;
     thread_pool *swimming_pool = internal->pool;
 
     // lock pool
-    pthread_mutex_lock(&swimming_pool->p_lock);
+    
     for (;;)
     {
+        pthread_mutex_lock(&internal->local_lock);
+        if (!list_empty(&internal->local))
+        {
+            // If the queue is non-empty, we will extract the future and determine each corresponding status.
+            struct future *f = list_entry(list_pop_front(&internal->local), struct future, elem);
+            f->task_status = IN_PROGRESS;
+            pthread_mutex_unlock(&internal->local_lock);
+            f->result = f->task(swimming_pool, f->data); 
+
+            pthread_mutex_lock(&internal->local_lock);
+            f->task_status = COMPLETED;
+            sem_post(&f->task_done);
+            pthread_mutex_unlock(&internal->local_lock);
+            continue;
+        }
+        pthread_mutex_unlock(&internal->local_lock);
+
+        pthread_mutex_lock(&swimming_pool->p_lock);
         // The first possibility is to refer to the global queue
         if (!list_empty(&swimming_pool->global))
         {
             // If the queue is non-empty, we will extract the future and determine each corresponding status.
-            struct future *f = list_entry(list_pop_front(&swimming_pool->global), struct future, elem);
+            struct future *f = list_entry(list_pop_back(&swimming_pool->global), struct future, elem);
             f->task_status = IN_PROGRESS;
             pthread_mutex_unlock(&swimming_pool->p_lock);
             f->result = f->task(swimming_pool, f->data); 
@@ -86,7 +105,7 @@ static void *worker_thread(void *p)
                 struct future *f = list_entry(list_pop_back(&w->local), struct future, elem);
                 f->task_status = IN_PROGRESS;
                 pthread_mutex_unlock(&w->local_lock);
-                f->result =f->task(swimming_pool, f->data);
+                f->result = f->task(swimming_pool, f->data);
                 
                 pthread_mutex_lock(&w->local_lock);
                 f->task_status = COMPLETED;
@@ -105,9 +124,10 @@ static void *worker_thread(void *p)
             break;
         }
         pthread_mutex_unlock(&swimming_pool->p_lock);
-        pthread_mutex_lock(&internal->local_lock);
-        pthread_cond_wait(&swimming_pool->cond, &internal->local_lock);
-        pthread_mutex_unlock(&internal->local_lock);
+        
+        // pthread_mutex_lock(&internal->local_lock);
+        // pthread_cond_wait(&internal->cond, &internal->local_lock);
+        // pthread_mutex_unlock(&internal->local_lock);
     // check if global pool is not empty
         // set future status
         // remove future from list
@@ -211,7 +231,14 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
     // to the threadpool and return its future.
 
     //(1) insert a mutex lock to achieve its desired implementation
-    pthread_mutex_lock(&pool->p_lock);
+    if (internal == NULL)
+    {
+        pthread_mutex_lock(&pool->p_lock);
+    }
+    else
+    {
+        pthread_mutex_lock(&internal->local_lock);
+    }
 
     //(2) instantiate a target of future* and access its corresponding attributes
     future *future_target = (future *)calloc(1, sizeof(future));
@@ -220,16 +247,26 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
     future_target->data = data;
     future_target->task_status = 0; // The status of the task is about to get started.
 
-    sem_init(&future_target->task_done, 0, 0); // initialize the smarphone is required to do so.
+    sem_init(&future_target->task_done, 0, 0); // initialize the semaphore is required to do so.
     // similar to a boss that you finish your task and place it at the laptop
 
-    // (3) Later, we decide to add an element to the global queue.
-    list_push_front(&pool->global, &future_target->elem);
+    // (3) Later, we decide to add an element to the global or local queue, depending on the calling thread.
+    if (internal == NULL)
+    {
+        list_push_front(&pool->global, &future_target->elem);
+        pthread_cond_broadcast(&pool->cond); // We need to be default to broadcast and wait for staff.
+        pthread_mutex_unlock(&pool->p_lock);
+    }
+    else 
+    {
+        list_push_front(&internal->local, &future_target->elem);
+        pthread_cond_broadcast(&internal->cond); // We need to be default to broadcast and wait for staff.
+        pthread_mutex_unlock(&pool->p_lock);
+    }
 
     // (4) The final step we are available to do is to wake up the threads in the thread pool
     // and unlock the threadpool.
-    pthread_cond_broadcast(&pool->cond); // We need to be default to braodcast and wait for staff.
-    pthread_mutex_unlock(&pool->p_lock);
+    
 
     return future_target;
 }
