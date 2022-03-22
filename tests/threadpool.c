@@ -242,6 +242,10 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
 
     //(2) instantiate a target of future* and access its corresponding attributes
     future *future_target = (future *)calloc(1, sizeof(future));
+    if (internal != NULL)
+    {
+        future_target->worker = internal;
+    }
     future_target->pool = pool;
     future_target->task = task;
     future_target->data = data;
@@ -261,7 +265,7 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
     {
         list_push_front(&internal->local, &future_target->elem);
         pthread_cond_broadcast(&internal->cond); // We need to be default to broadcast and wait for staff.
-        pthread_mutex_unlock(&pool->p_lock);
+        pthread_mutex_unlock(&internal->local_lock);
     }
 
     // (4) The final step we are available to do is to wake up the threads in the thread pool
@@ -303,7 +307,7 @@ void *future_get(struct future *future)
     }
     else
     {
-        pthread_mutex_lock(&future->worker->local_lock);
+        pthread_mutex_lock(&internal->local_lock);
         if (future->task_status == COMPLETED)
         {
             pthread_mutex_unlock(&future->worker->local_lock);
@@ -311,7 +315,7 @@ void *future_get(struct future *future)
         }
         else if (future->task_status == IN_PROGRESS)
         {
-            pthread_mutex_unlock(&future->worker->local_lock);
+            pthread_mutex_unlock(&internal->local_lock);
             sem_wait(&future->task_done);
         }
         else
@@ -319,15 +323,15 @@ void *future_get(struct future *future)
             list_remove(&future->elem);
             future->task_status = IN_PROGRESS;
 
-            pthread_mutex_unlock(&future->worker->local_lock);
+            pthread_mutex_unlock(&internal->local_lock);
 
             future->result = future->task(future->pool, future->data);
 
-            pthread_mutex_lock(&future->worker->local_lock);
+            pthread_mutex_lock(&internal->local_lock);
 
             future->task_status = COMPLETED;
             sem_post(&future->task_done);
-            pthread_mutex_unlock(&future->worker->local_lock);
+            pthread_mutex_unlock(&internal->local_lock);
         }
     }
 
