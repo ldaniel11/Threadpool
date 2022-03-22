@@ -53,7 +53,7 @@ static void *worker_thread(void *p)
     thread_pool *swimming_pool = internal->pool;
 
     // lock pool
-    
+
     for (;;)
     {
         pthread_mutex_lock(&internal->local_lock);
@@ -63,7 +63,7 @@ static void *worker_thread(void *p)
             struct future *f = list_entry(list_pop_front(&internal->local), struct future, elem);
             f->task_status = IN_PROGRESS;
             pthread_mutex_unlock(&internal->local_lock);
-            f->result = f->task(swimming_pool, f->data); 
+            f->result = f->task(swimming_pool, f->data);
 
             pthread_mutex_lock(&internal->local_lock);
             f->task_status = COMPLETED;
@@ -81,7 +81,7 @@ static void *worker_thread(void *p)
             struct future *f = list_entry(list_pop_back(&swimming_pool->global), struct future, elem);
             f->task_status = IN_PROGRESS;
             pthread_mutex_unlock(&swimming_pool->p_lock);
-            f->result = f->task(swimming_pool, f->data); 
+            f->result = f->task(swimming_pool, f->data);
 
             pthread_mutex_lock(&swimming_pool->p_lock);
             f->task_status = COMPLETED;
@@ -106,7 +106,7 @@ static void *worker_thread(void *p)
                 f->task_status = IN_PROGRESS;
                 pthread_mutex_unlock(&w->local_lock);
                 f->result = f->task(swimming_pool, f->data);
-                
+
                 pthread_mutex_lock(&w->local_lock);
                 f->task_status = COMPLETED;
                 sem_post(&f->task_done);
@@ -124,11 +124,11 @@ static void *worker_thread(void *p)
             break;
         }
         pthread_mutex_unlock(&swimming_pool->p_lock);
-        
+
         // pthread_mutex_lock(&internal->local_lock);
         // pthread_cond_wait(&internal->cond, &internal->local_lock);
         // pthread_mutex_unlock(&internal->local_lock);
-    // check if global pool is not empty
+        // check if global pool is not empty
         // set future status
         // remove future from list
         // unlock pool
@@ -138,10 +138,10 @@ static void *worker_thread(void *p)
         // sem post
         // unlock pool
         // continue
-    // check for work stealing
+        // check for work stealing
         // logic is similar as above
 
-    // check shutdown condition is false
+        // check shutdown condition is false
         // wait
 
         // pthread_mutex_lock(&w->local_lock);
@@ -257,7 +257,7 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
         pthread_cond_broadcast(&pool->cond); // We need to be default to broadcast and wait for staff.
         pthread_mutex_unlock(&pool->p_lock);
     }
-    else 
+    else
     {
         list_push_front(&internal->local, &future_target->elem);
         pthread_cond_broadcast(&internal->cond); // We need to be default to broadcast and wait for staff.
@@ -266,51 +266,110 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
 
     // (4) The final step we are available to do is to wake up the threads in the thread pool
     // and unlock the threadpool.
-    
 
     return future_target;
 }
 
-
-void *future_get(struct future * future) {
-     // the external case.
-     if (future->task_status != COMPLETED) {
-         sem_wait(&future->task_done);
-     }
-     else {
-         // the internal case
-
-         pthread_mutex_lock(&future->pool->p_lock);
-
-         // Later, we have to analyze the following three scenarios with respect to three status
-        // in the enumerator working_status
-        if (future->task_status == STARTED) {
-        
-            list_remove(&future->elem); // The element can be removed from the worker list.
-
+void *future_get(struct future *future)
+{
+    if (internal == NULL)
+    {
+        pthread_mutex_lock(&future->pool->p_lock);
+        if (future->task_status == COMPLETED)
+        {
+            pthread_mutex_unlock(&future->pool->p_lock);
+            return future->result;
+        }
+        else if (future->task_status == IN_PROGRESS)
+        {
+            pthread_mutex_unlock(&future->pool->p_lock);
+            sem_wait(&future->task_done);
+        }
+        else
+        {
+            list_remove(&future->elem);
             future->task_status = IN_PROGRESS;
+
             pthread_mutex_unlock(&future->pool->p_lock);
 
-             
-            future->result = future->task(future->pool, future->data); 
-        
+            future->result = future->task(future->pool, future->data);
+
             pthread_mutex_lock(&future->pool->p_lock);
+
             future->task_status = COMPLETED;
             sem_post(&future->task_done);
             pthread_mutex_unlock(&future->pool->p_lock);
         }
-        else if (future->task_status == IN_PROGRESS) {
-            pthread_mutex_unlock(&future->pool->p_lock);
+    }
+    else
+    {
+        pthread_mutex_lock(&future->worker->local_lock);
+        if (future->task_status == COMPLETED)
+        {
+            pthread_mutex_unlock(&future->worker->local_lock);
+            return future->result;
+        }
+        else if (future->task_status == IN_PROGRESS)
+        {
+            pthread_mutex_unlock(&future->worker->local_lock);
             sem_wait(&future->task_done);
         }
-        else {
-            pthread_mutex_unlock(&future->pool->p_lock);
-            sem_wait(&future->task_done); // Just for emergency 
+        else
+        {
+            list_remove(&future->elem);
+            future->task_status = IN_PROGRESS;
+
+            pthread_mutex_unlock(&future->worker->local_lock);
+
+            future->result = future->task(future->pool, future->data);
+
+            pthread_mutex_lock(&future->worker->local_lock);
+
+            future->task_status = COMPLETED;
+            sem_post(&future->task_done);
+            pthread_mutex_unlock(&future->worker->local_lock);
         }
-     }
+    }
+
+    // the external case.
+    //  if (future->task_status != COMPLETED) {
+
+    //      sem_wait(&future->task_done);
+    //  }
+    //  else {
+    //      // the internal case
+
+    //      pthread_mutex_lock(&future->pool->p_lock);
+
+    //      // Later, we have to analyze the following three scenarios with respect to three status
+    //     // in the enumerator working_status
+    //     if (future->task_status == STARTED) {
+
+    //         list_remove(&future->elem); // The element can be removed from the worker list.
+
+    //         future->task_status = IN_PROGRESS;
+    //         pthread_mutex_unlock(&future->pool->p_lock);
+
+    //         future->result = future->task(future->pool, future->data);
+
+    //         pthread_mutex_lock(&future->pool->p_lock);
+    //         future->task_status = COMPLETED;
+    //         sem_post(&future->task_done);
+    //         pthread_mutex_unlock(&future->pool->p_lock);
+    //     }
+    //     else if (future->task_status == IN_PROGRESS) {
+    //         pthread_mutex_unlock(&future->pool->p_lock);
+    //         sem_wait(&future->task_done);
+    //     }
+    //     else {
+    //         pthread_mutex_unlock(&future->pool->p_lock);
+    //         sem_wait(&future->task_done); // Just for emergency
+    //     }
+    //  }
     return future->result;
 }
 
-void future_free(struct future *future){
+void future_free(struct future *future)
+{
     free(future);
 }
