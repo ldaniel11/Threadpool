@@ -56,6 +56,7 @@ static void *worker_thread(void *p)
 
     for (;;)
     {
+        // This is the prerequisite I need to pay attention to.
         pthread_mutex_lock(&internal->local_lock);
         if (!list_empty(&internal->local))
         {
@@ -72,6 +73,8 @@ static void *worker_thread(void *p)
             continue;
         }
         pthread_mutex_unlock(&internal->local_lock);
+        
+
 
         pthread_mutex_lock(&swimming_pool->p_lock);
         // The first possibility is to refer to the global queue
@@ -91,7 +94,7 @@ static void *worker_thread(void *p)
         }
         pthread_mutex_unlock(&swimming_pool->p_lock);
 
-        // The second possibility is to refer to the worker thread.
+        // The second possibility is to refer to the worker stealing.
         struct list_elem *e;
 
         for (e = list_begin(&swimming_pool->workers); e != list_end(&swimming_pool->workers);
@@ -221,6 +224,10 @@ void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
         a++;
     }
 
+    while(!list_empty(&pool->workers)) {
+        free(list_entry(list_pop_front(&pool->workers), struct worker, obj));
+    }
+
     free(pool->thread_arr);
     free(pool);
 }
@@ -233,10 +240,12 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
     //(1) insert a mutex lock to achieve its desired implementation
     if (internal == NULL)
     {
+        // global queue
         pthread_mutex_lock(&pool->p_lock);
     }
     else
     {
+        // the working thread
         pthread_mutex_lock(&internal->local_lock);
     }
 
@@ -244,6 +253,7 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
     future *future_target = (future *)calloc(1, sizeof(future));
     if (internal != NULL)
     {
+        // the worker thread
         future_target->worker = internal;
     }
     future_target->pool = pool;
@@ -277,6 +287,7 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
 void *future_get(struct future *future)
 {
     if (internal == NULL)
+    // global queue
     {
         pthread_mutex_lock(&future->pool->p_lock);
         if (future->task_status == COMPLETED)
@@ -291,22 +302,28 @@ void *future_get(struct future *future)
         }
         else
         {
-            list_remove(&future->elem);
-            future->task_status = IN_PROGRESS;
-
             pthread_mutex_unlock(&future->pool->p_lock);
+            sem_wait(&future->task_done);
+            
 
-            future->result = future->task(future->pool, future->data);
+            
+            // list_remove(&future->elem);
+            // future->task_status = IN_PROGRESS;
 
-            pthread_mutex_lock(&future->pool->p_lock);
+            // pthread_mutex_unlock(&future->pool->p_lock);
 
-            future->task_status = COMPLETED;
-            sem_post(&future->task_done);
-            pthread_mutex_unlock(&future->pool->p_lock);
+            // future->result = future->task(future->pool, future->data);
+
+            // pthread_mutex_lock(&future->pool->p_lock);
+
+            // future->task_status = COMPLETED;
+            // sem_post(&future->task_done);
+            // pthread_mutex_unlock(&future->pool->p_lock);
         }
     }
     else
     {
+        // What happen if it is a worker thread？
         pthread_mutex_lock(&internal->local_lock);
         if (future->task_status == COMPLETED)
         {
